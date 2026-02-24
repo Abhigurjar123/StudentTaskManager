@@ -24,20 +24,20 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService customUserDetailsService;
 
-    // 🔐 Password Encoder
+    
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // 🔑 Authentication Manager (login ke liye)
+
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 
-    // 🔥 Main Security Configuration
+    
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
@@ -52,7 +52,7 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                // 🔥 bind authentication provider
+            
                 .authenticationProvider(authenticationProvider())
 
                 .addFilterBefore(jwtAuthenticationFilter,
@@ -60,7 +60,7 @@ public class SecurityConfig {
 
         return http.build();
     }
-    // 🔑 Authentication Provider (IMPORTANT)
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider =
