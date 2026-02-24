@@ -20,7 +20,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
 
-    // ---------------- CREATE ----------------
+    
 
     @Transactional
     @Override
@@ -44,7 +44,7 @@ public class TaskServiceImpl implements TaskService {
         return mapToDto(savedTask);
     }
 
-    // ---------------- GET ALL ----------------
+    
 
 
     @Override
@@ -56,7 +56,7 @@ public class TaskServiceImpl implements TaskService {
                 .toList();
     }
 
-    // ---------------- GET BY ID ----------------
+    
 
 
     @Override
@@ -70,7 +70,7 @@ public class TaskServiceImpl implements TaskService {
         return mapToDto(task);
     }
 
-    // ---------------- UPDATE ----------------
+    
 
     @Transactional
     @Override
@@ -93,7 +93,7 @@ public class TaskServiceImpl implements TaskService {
         return mapToDto(updatedTask);
     }
 
-    // ---------------- DELETE ----------------
+    
 
     @Transactional
     @Override
