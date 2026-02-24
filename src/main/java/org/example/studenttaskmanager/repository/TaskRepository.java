@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TaskRepository  extends JpaRepository<Task,Long> {
-    // Get all tasks of a specific user
+    
     List<Task> findByUserId(Long userId);
 
-    // Secure fetch (prevents accessing other user's task)
+    
     Optional<Task> findByIdAndUserId(Long taskId, Long userId);
 }
