@@ -5,9 +5,12 @@ import org.example.studenttaskmanager.dto.TaskRequestDto;
 import org.example.studenttaskmanager.dto.TaskResponseDto;
 import org.example.studenttaskmanager.entity.Task;
 import org.example.studenttaskmanager.entity.User;
+import org.example.studenttaskmanager.exception.ResourceNotFoundException;
 import org.example.studenttaskmanager.repository.TaskRepository;
 import org.example.studenttaskmanager.repository.UserRepository;
 import org.example.studenttaskmanager.service.TaskService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,16 +23,13 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
 
-    
+    // ================= CREATE =================
 
     @Transactional
     @Override
-    public TaskResponseDto createTask(Long userId, TaskRequestDto dto) {
+    public TaskResponseDto createTask(TaskRequestDto dto) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() ->
-                        new RuntimeException("User not found with id: " + userId)
-                );
+        User user = getCurrentUser();
 
         Task task = new Task();
         task.setTitle(dto.getTitle());
@@ -39,47 +39,49 @@ public class TaskServiceImpl implements TaskService {
         task.setDueDate(dto.getDueDate());
         task.setUser(user);
 
-        Task savedTask = taskRepository.save(task);
-
-        return mapToDto(savedTask);
+        return mapToDto(taskRepository.save(task));
     }
 
-    
-
+    // ================= GET MY TASKS =================
 
     @Override
-    public List<TaskResponseDto> getAllTasksByUser(Long userId) {
+    public List<TaskResponseDto> getMyTasks() {
 
-        return taskRepository.findByUserId(userId)
+        User user = getCurrentUser();
+
+        return taskRepository.findByUserId(user.getId())
                 .stream()
                 .map(this::mapToDto)
                 .toList();
     }
 
-    
-
+    // ================= GET BY ID =================
 
     @Override
-    public TaskResponseDto getTaskById(Long taskId, Long userId) {
+    public TaskResponseDto getTaskById(Long taskId) {
 
-        Task task = taskRepository.findByIdAndUserId(taskId, userId)
+        User user = getCurrentUser();
+
+        Task task = taskRepository
+                .findByIdAndUserId(taskId, user.getId())
                 .orElseThrow(() ->
-                        new RuntimeException("Task not found")
-                );
+                        new ResourceNotFoundException("Task not found"));
 
         return mapToDto(task);
     }
 
-    
+    // ================= UPDATE =================
 
     @Transactional
     @Override
-    public TaskResponseDto updateTask(Long taskId, Long userId, TaskRequestDto dto) {
+    public TaskResponseDto updateTask(Long taskId, TaskRequestDto dto) {
 
-        Task task = taskRepository.findByIdAndUserId(taskId, userId)
+        User user = getCurrentUser();
+
+        Task task = taskRepository
+                .findByIdAndUserId(taskId, user.getId())
                 .orElseThrow(() ->
-                        new RuntimeException("Task not found")
-                );
+                        new ResourceNotFoundException("Task not found"));
 
         task.setTitle(dto.getTitle());
         task.setDescription(dto.getDescription());
@@ -87,29 +89,52 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus(dto.getStatus());
         task.setDueDate(dto.getDueDate());
 
-        // save() optional (dirty checking), but explicit clearer
-        Task updatedTask = taskRepository.save(task);
-
-        return mapToDto(updatedTask);
+        return mapToDto(taskRepository.save(task));
     }
 
-    
+    // ================= DELETE =================
 
     @Transactional
     @Override
-    public void deleteTaskById(Long taskId, Long userId) {
+    public void deleteTask(Long taskId) {
 
-        Task task = taskRepository.findByIdAndUserId(taskId, userId)
+        User user = getCurrentUser();
+
+        Task task = taskRepository
+                .findByIdAndUserId(taskId, user.getId())
                 .orElseThrow(() ->
-                        new RuntimeException("Task not found")
-                );
+                        new ResourceNotFoundException("Task not found"));
 
         taskRepository.delete(task);
     }
 
-    // ---------------- MAPPER ----------------
+    // ================= ADMIN =================
+
+    @Override
+    public List<TaskResponseDto> getAllTasks() {
+
+        return taskRepository.findAll()
+                .stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    // ================= HELPER =================
+
+    private User getCurrentUser() {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        String email = authentication.getName();
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+    }
 
     private TaskResponseDto mapToDto(Task task) {
+
         return TaskResponseDto.builder()
                 .id(task.getId())
                 .title(task.getTitle())

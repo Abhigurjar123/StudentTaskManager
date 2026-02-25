@@ -3,19 +3,21 @@ package org.example.studenttaskmanager.service;
 import org.example.studenttaskmanager.dto.TaskRequestDto;
 import org.example.studenttaskmanager.dto.TaskResponseDto;
 
-
 import java.util.List;
-
 
 public interface TaskService {
 
-    TaskResponseDto createTask(Long userId, TaskRequestDto requestDto);
+    // USER
+    TaskResponseDto createTask(TaskRequestDto requestDto);
 
-    TaskResponseDto updateTask(Long taskId, Long userId, TaskRequestDto requestDto);
+    TaskResponseDto updateTask(Long taskId, TaskRequestDto requestDto);
 
-    List<TaskResponseDto> getAllTasksByUser(Long userId);
+    List<TaskResponseDto> getMyTasks();
 
-    TaskResponseDto getTaskById(Long taskId, Long userId);
+    TaskResponseDto getTaskById(Long taskId);
 
-    void deleteTaskById(Long taskId, Long userId);
+    void deleteTask(Long taskId);
+
+    // ADMIN
+    List<TaskResponseDto> getAllTasks();
 }

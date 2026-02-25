@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 
 @Component
 @RequiredArgsConstructor
@@ -27,52 +29,63 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 1️⃣ Authorization header read karo
-        String authHeader = request.getHeader("Authorization");
+        try {
 
-        // 2️⃣ Agar header missing ya invalid format me hai, aage pass kar do
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+            String authHeader = request.getHeader("Authorization");
 
-        // 3️⃣ Token extract karo
-        String token = authHeader.substring(7);
-
-        // 4️⃣ Token se username nikalo
-        String username = jwtService.extractUsername(token);
-
-        // 5️⃣ Agar username mila aur user already authenticated nahi hai
-        if (username != null &&
-                SecurityContextHolder.getContext().getAuthentication() == null) {
-
-            // 6️⃣ DB se user load karo
-            UserDetails userDetails =
-                    userDetailsService.loadUserByUsername(username);
-
-            // 7️⃣ Token validate karo
-            if (jwtService.isTokenValid(token, userDetails)) {
-
-                // 8️⃣ Authentication object create karo
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource()
-                                .buildDetails(request)
-                );
-
-                // 9️⃣ SecurityContext me set karo
-                SecurityContextHolder.getContext()
-                        .setAuthentication(authentication);
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                filterChain.doFilter(request, response);
+                return;
             }
-        }
 
-        // 🔟 Request ko next filter me bhejo
-        filterChain.doFilter(request, response);
+            String token = authHeader.substring(7);
+
+            String username = jwtService.extractUsername(token);
+
+            if (username != null &&
+                    SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                UserDetails userDetails =
+                        userDetailsService.loadUserByUsername(username);
+
+                if (jwtService.isTokenValid(token, userDetails)) {
+
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+
+                    authentication.setDetails(
+                            new WebAuthenticationDetailsSource()
+                                    .buildDetails(request)
+                    );
+
+                    SecurityContextHolder.getContext()
+                            .setAuthentication(authentication);
+                }
+            }
+
+            filterChain.doFilter(request, response);
+
+        } catch (Exception ex) {
+
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            response.setContentType("application/json");
+
+            response.getWriter().write("""
+                {
+                  "timestamp": "%s",
+                  "status": 401,
+                  "error": "Unauthorized",
+                  "message": "Invalid or expired token",
+                  "path": "%s"
+                }
+                """.formatted(
+                    LocalDateTime.now(),
+                    request.getRequestURI()
+            ));
+        }
     }
 }

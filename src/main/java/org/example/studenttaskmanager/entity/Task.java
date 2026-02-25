@@ -19,12 +19,12 @@ import java.time.LocalDate;
 public class Task {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private  long id;
+    private  Long id;
 
     @Column(nullable = false)
     private  String title;
 
-    @Column(nullable = false)
+    @Column
     private String description;
 
     @Column(nullable = false)
