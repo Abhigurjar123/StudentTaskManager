@@ -1,6 +1,8 @@
 package org.example.studenttaskmanager.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -11,50 +13,33 @@ import org.springframework.stereotype.Service;
 
 import java.security.Key;
 import java.util.Date;
-import java.util.function.Function;
 
 @Service
 public class JwtService {
 
-    // 🔐 Secret and expiration from application.properties
     @Value("${jwt.secret}")
     private String secretKey;
 
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
-    // ================= GENERATE TOKEN =================
-
+    // ================== GENERATE TOKEN ==================
     public String generateToken(UserDetails userDetails) {
+
+        Date currentDate = new Date();
+        Date expiryDate = new Date(currentDate.getTime() + jwtExpiration);
+
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())   // email
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
+                .setSubject(userDetails.getUsername())
+                .setIssuedAt(currentDate)
+                .setExpiration(expiryDate)
                 .signWith(getSignKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // ================= EXTRACT USERNAME =================
-
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
-    }
-
-    // ================= VALIDATE TOKEN =================
-
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
-    }
-
-    // ================= EXTRACT CLAIM =================
-
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
-
+    // ================== EXTRACT ALL CLAIMS (COMMON METHOD) ==================
     private Claims extractAllClaims(String token) {
+
         return Jwts.parserBuilder()
                 .setSigningKey(getSignKey())
                 .build()
@@ -62,12 +47,38 @@ public class JwtService {
                 .getBody();
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractClaim(token, Claims::getExpiration).before(new Date());
+    // ================== EXTRACT USERNAME ==================
+    public String extractUsername(String token) {
+        return extractAllClaims(token).getSubject();
     }
 
-    // ================= SIGNING KEY =================
+    // ================== CHECK IF TOKEN EXPIRED ==================
+    public boolean isTokenExpired(String token) {
+        Date expiryDate = extractAllClaims(token).getExpiration();
+        return expiryDate.before(new Date());
+    }
 
+    // ================== VALIDATE TOKEN (WITH EXCEPTION HANDLING) ==================
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+
+        try {
+            String username = extractUsername(token);
+
+            return username.equals(userDetails.getUsername())
+                    && !isTokenExpired(token);
+
+        } catch (ExpiredJwtException e) {
+            System.out.println("Token expired");
+        } catch (JwtException e) {
+            System.out.println("Invalid token");
+        } catch (Exception e) {
+            System.out.println("Something went wrong");
+        }
+
+        return false;
+    }
+
+    // ================== SECRET KEY ==================
     private Key getSignKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);

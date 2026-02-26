@@ -1,5 +1,6 @@
 package org.example.studenttaskmanager.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,63 +30,78 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        String authHeader = request.getHeader("Authorization");
+
+        // 1️⃣ If no token → continue normally
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = authHeader.substring(7);
+
         try {
 
-            String authHeader = request.getHeader("Authorization");
+            String username = jwtService.extractUsername(token);
 
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            // 2️⃣ If already authenticated → skip
+            if (username == null ||
+                    SecurityContextHolder.getContext().getAuthentication() != null) {
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            String token = authHeader.substring(7);
+            UserDetails userDetails =
+                    userDetailsService.loadUserByUsername(username);
 
-            String username = jwtService.extractUsername(token);
+            // 3️⃣ Validate token
+            if (!jwtService.isTokenValid(token, userDetails)) {
+                sendUnauthorized(response, request, "Invalid or expired token");
+                return;
+            }
 
-            if (username != null &&
-                    SecurityContextHolder.getContext().getAuthentication() == null) {
-
-                UserDetails userDetails =
-                        userDetailsService.loadUserByUsername(username);
-
-                if (jwtService.isTokenValid(token, userDetails)) {
-
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
-
-                    authentication.setDetails(
-                            new WebAuthenticationDetailsSource()
-                                    .buildDetails(request)
+            // 4️⃣ Set authentication
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
                     );
 
-                    SecurityContextHolder.getContext()
-                            .setAuthentication(authentication);
-                }
-            }
+            authentication.setDetails(
+                    new WebAuthenticationDetailsSource()
+                            .buildDetails(request)
+            );
+
+            SecurityContextHolder.getContext()
+                    .setAuthentication(authentication);
 
             filterChain.doFilter(request, response);
 
-        } catch (Exception ex) {
-
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType("application/json");
-
-            response.getWriter().write("""
-                {
-                  "timestamp": "%s",
-                  "status": 401,
-                  "error": "Unauthorized",
-                  "message": "Invalid or expired token",
-                  "path": "%s"
-                }
-                """.formatted(
-                    LocalDateTime.now(),
-                    request.getRequestURI()
-            ));
+        } catch (JwtException ex) {
+            sendUnauthorized(response, request, "Invalid or expired token");
         }
+    }
+
+    private void sendUnauthorized(HttpServletResponse response,
+                                  HttpServletRequest request,
+                                  String message) throws IOException {
+
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType("application/json");
+
+        response.getWriter().write("""
+            {
+              "timestamp": "%s",
+              "status": 401,
+              "error": "Unauthorized",
+              "message": "%s",
+              "path": "%s"
+            }
+            """.formatted(
+                LocalDateTime.now(),
+                message,
+                request.getRequestURI()
+        ));
     }
 }
